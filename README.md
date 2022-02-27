@@ -2,10 +2,11 @@
 
 An app created by Sam Williams, Roshan Sanyal, Jordan Rudman, and Nathan Forehand for VT Hacks IX. The following resources were used:
 
-- JavaScript
+- JavaScript (JQuery)
 - HTML
 - CSS
-- Python
+- Python (Pandas, Plotly, yfinance)
+- Prophet (https://facebook.github.io/prophet/)
 - Yahoo Finance API (https://www.yahoofinanceapi.com/)
 - Google Cloud
 - GitHub pages
