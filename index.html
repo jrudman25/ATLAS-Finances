@@ -1,0 +1,406 @@
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script>
+
+var newsUrl = "https://yh-finance.p.rapidapi.com/auto-complete?q=tesla&region=US";
+let news_elem;
+
+function fetchMLData(term, cb) {
+    fetch("http://34.125.134.166:8000/"+term).then(response => {
+  if (response.ok) {
+    response.text().then(json => {
+        //   console.log(json);
+        if (json == "{}") {
+            cb(false);
+        }
+        else {
+            let ss = json.split("|");
+            cb(true, JSON.parse(ss[0]), JSON.parse(ss[1]));
+        }
+    });
+  }});
+}
+
+function fetchNews(term) {
+        let url = "https://yh-finance.p.rapidapi.com/auto-complete?q=" + term + "&region=US"
+        const settings = {
+            "async": true,
+            "crossDomain": true,
+            "url": url,
+            "method": "GET",
+            "headers": {
+                "x-rapidapi-host": "yh-finance.p.rapidapi.com",
+                "x-rapidapi-key":  "2ef34893cbmshb1d06ec33148af5p17e20fjsn4edff4386ef8"
+            }
+        };
+        $.ajax(settings).done(async function (response) {
+            //console.log(response.quotes[0].quoteType)
+            if(response.quotes.length < 1 || response.quotes[0].quoteType.localeCompare('CRYPTOCURRENCY') != 0) {
+                console.log("Not a valid cryptocurrency!");
+            }
+            else {
+                //console.log(e.target.value)
+                //console.log(response)
+                //console.log(response.news)
+                console.log(response.quotes[0].shortname + '\n')
+                ticker = term
+                i = 0;
+                news_elem.innerHTML = "";
+                while(i < 3 && response.news[i].title.length > 0) {
+                    var utcTime = response.news[i].providerPublishTime
+                    var date = new Date(0)
+                    date.setUTCSeconds(utcTime)
+                    let obj = {};
+                    obj.title = response.news[i].title;
+                    obj.publisher = response.news[i].publisher;
+                    obj.link = response.news[i].link;
+                    news_elem.appendChild(new Article(obj).elem);
+                    i++;
+                }
+            }
+        });
+}
+
+function jsonFromFile(label, path, cb) {
+    function readTextFile(file, callback) {
+        var rawFile = new XMLHttpRequest();
+        rawFile.overrideMimeType("application/json");
+        rawFile.open("GET", file, true);
+        rawFile.onreadystatechange = function() {
+            if (rawFile.readyState === 4 && rawFile.status == "200") {
+                callback(rawFile.responseText);
+            }
+        }
+        rawFile.send(null);
+    }
+
+    var data = {};
+
+    readTextFile(path, function(text){
+        data.data = JSON.parse(text);
+        cb(data.data, label);
+    });
+    return data;
+}
+
+function csvJSON(csv){
+
+    var lines=csv.split("\n");
+
+    var result = [];
+
+    // NOTE: If your columns contain commas in their values, you'll need
+    // to deal with those before doing the next step 
+    // (you might convert them to &&& or something, then covert them back later)
+    // jsfiddle showing the issue https://jsfiddle.net/
+    var headers=lines[0].split(",");
+
+    for(var i=1;i<lines.length;i++){
+
+        var obj = {};
+        var currentline=lines[i].split(",");
+
+        for(var j=0;j<headers.length;j++){
+            obj[headers[j]] = currentline[j];
+        }
+
+        result.push(obj);
+    }
+
+    return JSON.stringify(result); //JSON
+}
+
+    // Pre Javascript
+    let stockId = 0;    // Unique for each stock
+    let stockPos = 0;   // The current position
+    let stocksLen = 0;  // The number of stocks
+    let update_by_num;  // Function updating stocks by num
+
+    class Data {
+        constructor(title, rawData, id) {
+            this.title = title;
+            this.id = id;
+            this.rawData = rawData;
+            this.favorited = false;
+        }
+    }
+
+    class Dot {
+        constructor(data) {
+            this.elem = document.createElement("div");
+            this.elem.innerText = data.title;
+            this.elem.classList.add("dot");
+            this.elem.addEventListener("click", ()=>{update(data.id)}, false);
+        }
+    }
+
+    class Article {
+        constructor(data) {
+            this.elem = document.createElement("div");
+            this.elem.classList.add("article")
+            this.title = document.createElement("h1");
+            this.title.innerText = data.title;
+            this.elem.appendChild(this.title);
+            this.publisher = document.createElement("p");
+            this.publisher.innerText = "By " + data.publisher;
+            this.elem.appendChild(this.publisher);
+            this.link = document.createElement("a");
+            this.link.innerText = "Learn more";
+            this.link.setAttribute("href", data.link);
+            this.elem.appendChild(this.link);
+        }
+    }
+
+    let datas = [];     // Our data list
+    let dot_array = []; // The dot array referencing data objects
+    let dot_elem;
+    let favorite_elem;
+    let query_elem;
+    // let news_elem;
+
+    const AddData = function (title, data) {
+        let newData = new Data(title, data, stockId++);
+        datas.push(newData);
+        stocksLen++;
+
+        let newDot = new Dot(newData);
+        dot_array.push(newDot);
+        dot_elem.appendChild(newDot.elem);
+    }
+
+    const RemoveCurrentData = function () {
+        console.log("DFDF")
+        datas.splice(stockPos, 1);
+        
+        dot_elem.removeChild(dot_array[stockPos].elem);
+
+        dot_array.splice(stockPos, 1);
+        stocksLen--;
+
+        stockPos--;
+        if (stockPos == -1) stockPos = 0;
+
+        update(stockPos);
+    }
+
+    const FavoriteCurrentData = function () {
+        let data = GetData(stockPos);
+
+        if (data.favorited) {
+            favorite_elem.classList.remove("favorited");
+        }
+        else {
+            favorite_elem.classList.add("favorited");
+        }
+
+        data.favorited = !data.favorited;
+    }
+
+    const GetData = function (index) {
+        return datas[index];
+    }
+
+    const Search = function () {
+        let regExp = /[^A-Z]/g;
+        let text = query_elem.value.toUpperCase().replace(regExp, "");
+
+        console.log("Query: " + text);
+
+        // Search for it
+        let idx = -1;
+        datas.forEach(d=>{
+            if (d.title === text) {
+                idx = d.id;
+            }
+        });
+
+        if (idx == -1) {
+            // update(0);
+            fetchMLData(text, (found, data1, data2) => {
+                if (found) {
+                    let d = {};
+                    d.predicted = data1;
+                    d.actual = data2;
+                    // AddData(text, data);
+                    loadBase(d, text);
+                    fetchNews(text);
+                    update(stocksLen-1);
+                }
+                else query_elem.value = "Invalid Query";
+
+            });
+        }
+        else {
+            update(idx);
+        }
+
+    }
+
+</script>
+
+<!DOCTYPE html>
+    <html>
+    <meta charset="utf-8">
+
+    <!-- Load d3.js -->
+    <script src="https://d3js.org/d3.v4.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.9.0.min.js"></script>
+    <head>
+        <link href="main.css" rel="stylesheet">
+    </head>
+    <body>
+
+        <section id="sidebar">
+            
+            <h3>
+                In the News
+            </h3>
+            <div id="news_list">
+
+            </div>
+
+        </section>
+
+        <section id="main">
+
+            <h2>
+                ATLAS Crypto Exchange
+            </h2>
+            <p>
+                Above the world
+            </p>
+
+            <div id="search_stock">
+                <span>Crypto Name: </span><input type="text" id="search_stock_query"
+                                placeholder="e.g. BTC"></input>
+                <a onclick="Search()">Search</a>
+            </div>
+
+            <div id="stock_header">
+                <div id="float_pos"></div>
+                <div id="remove" onclick="RemoveCurrentData()" class="icon"></div>
+                <div id="favorite" onclick="FavoriteCurrentData()" class="icon"></div>
+            </div>
+
+            <!-- Add 2 buttons
+            <button onclick="update(data1)">Dataset 1</button>
+            <button onclick="update(data2)">Dataset 2</button> -->
+
+            <!-- Create a div where the graph will take place -->
+            <div id="data_viz_wrapper">
+                <div id="my_dataviz"></div>
+            </div>
+
+        </section>
+
+    </body>
+</html>
+
+
+<script>
+
+    dot_elem = document.getElementById("float_pos");
+    favorite_elem = document.getElementById("favorite");
+    query_elem = document.getElementById("search_stock_query");
+    news_elem = document.getElementById("news_list");
+
+    var speedTransitonMS = 1000;
+    var p_height = 300;
+    var p_width = 500;
+    var p_text_color = "grey";
+
+    // var data1 = csvJSON("./demo/BTC-USD.csv");
+    // var data2 = csvJSON("./demo/ETH-USD.csv");
+    // var data3 = csvJSON("./demo/XRP-USD.csv");
+
+    // Add these to datas
+    // AddData("ATLS", data1);
+    // AddData("AAPL", data2);
+    // AddData("TSLA", data3);
+  
+    
+    // Create a function that takes a dataset as input and update the plot:
+    function update(next) {
+
+      // Access raw data
+      data = GetData(next);
+      let rawData;
+      if (!data) {
+        rawData = [{ser1: 0, ser2: 0}];
+      }
+      else {
+        rawData = data.rawData;
+
+        dot_array[stockPos].elem.classList.remove("selected_dot");
+        dot_array[next].elem.classList.add("selected_dot");
+
+        if (data.favorited) {
+            favorite_elem.classList.add("favorited");
+        }
+        else {
+            favorite_elem.classList.remove("favorited");
+        }
+
+        stockPos = next;
+      }
+
+      const layout = {
+        paper_bgcolor: "rgba(16,16,16,1)",
+        plot_bgcolor: "rgba(32,32,32,1)",
+        line: {
+            color: "green"
+        },
+        font: {
+            color: "grey"
+        }
+      }
+
+      const config = {
+          displayModeBar: false
+      }
+
+      // Plotly.templates.default = "plotly_dark"
+      Plotly.newPlot('my_dataviz', rawData, layout, config);
+
+    }
+
+    update_by_num = function(n) {
+        let next = (stockPos + n) % stocksLen;
+        // console.log(next)
+        update(next);
+    }
+    
+    // At the beginning, I run the update function on the first dataset:
+    // update(0)
+
+    async function loadBase(d, label) {
+        
+        var predicted = {}, actual = {};
+        predicted.x = []; predicted.y = []; predicted.name = "Predicted";
+        actual.x = []; actual.y = []; actual.name = "Actual";
+
+        for (let i = 0; i < Object.keys(d.predicted.ds).length; i++) {
+            predicted.x.push(new Date(d.predicted.ds[i]));
+        }
+        for (let i = 0; i < Object.keys(d.predicted.yhat).length; i++) {
+            predicted.y.push(d.predicted.yhat[i]);
+        }
+        for (let i = 0; i < Object.keys(d.actual.ds).length; i++) {
+            actual.x.push(new Date(d.actual.ds[i]));
+        }
+        for (let i = 0; i < Object.keys(d.actual.y).length; i++) {
+            actual.y.push(d.actual.y[i]);
+        }
+
+        var data = [predicted, actual];
+
+        AddData(label, data);
+    }
+
+    // jsonFromFile("BTC", "./demo/forcast.json", loadBase);
+    // jsonFromFile("ETH", "./demo/forcast (2).json", loadBase);
+    // jsonFromFile("XQC", "./demo/forcast (3).json", loadBase);
+
+    fetchNews("crypto");
+
+    
+    </script>
